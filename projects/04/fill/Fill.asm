@@ -12,3 +12,55 @@
 // the screen should remain fully clear as long as no key is pressed.
 
 // Put your code here.
+//for( ; ; )
+//{
+//    if(isOn=RAM[24576])
+//    {
+//        black
+//    }
+//    else
+//    {
+//        while
+//    }
+//}
+(INFINITE_LOOP)
+    @KBD
+    D=M
+    @OFF
+    D;JGT
+    @SCREEN
+    D=A
+    @i
+    M=D
+(LOOP1)
+    @i
+    A=M 
+    M=0
+    @i
+    M=M+1
+    D=M
+    @KBD
+    D=A-D
+    @LOOP1
+    D;JGT
+    @INFINITE_LOOP
+    0;JMP
+
+(OFF)
+    @SCREEN
+    D=A
+    @i
+    M=D
+(LOOP2)
+    @i
+    A=M 
+    M=-1
+    @i
+    M=M+1
+    D=M
+    @KBD
+    D=A-D
+    @LOOP2
+    D;JGT
+    @INFINITE_LOOP
+    0;JMP
