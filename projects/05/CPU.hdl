@@ -8,15 +8,19 @@
  * two registers named A and D, and a program counter named PC.
  * The CPU is designed to fetch and execute instructions written in 
  * the Hack machine language. In particular, functions as follows:
+ * 
  * Executes the inputted instruction according to the Hack machine 
  * language specification. The D and A in the language specification
  * refer to CPU-resident registers, while M refers to the external
- * memory location addressed by A, i.e. to Memory[A]. The inM input 
- * holds the value of this location. If the current instruction needs 
+ * memory location addressed by A, i.e. to Memory[A]. 
+
+ * The inM input holds the value of this location. If the current instruction needs 
  * to write a value to M, the value is placed in outM, the address 
  * of the target location is placed in the addressM output, and the 
  * writeM control bit is asserted. (When writeM==0, any value may 
- * appear in outM). The outM and writeM outputs are combinational: 
+ * appear in outM). 
+ 
+ * The outM and writeM outputs are combinational: 
  * they are affected instantaneously by the execution of the current 
  * instruction. The addressM and pc outputs are clocked: although they 
  * are affected by the execution of the current instruction, they commit 
@@ -24,7 +28,9 @@
  * CPU jumps to address 0 (i.e. pc is set to 0 in next time step) rather 
  * than to the address resulting from executing the current instruction. 
  */
-
+//          compcompcompcompcomp  destdest jumpjump 逆序！！
+// 1  1  1  a  c1 c2 c3 c4 c5 c6  d1 d2 d3 j1 j2 j3
+// 15 14 13 12 11 10 9  8  7  6    5  4  3  2  1  0
 CHIP CPU {
 
     IN  inM[16],         // M value input  (M = contents of RAM[A])
@@ -40,4 +46,37 @@ CHIP CPU {
 
     PARTS:
     // Put your code here:
+	Not(in=instruction[15],out=ainstruction);
+	Mux16(a=outmemory,b=instruction,sel=ainstruction,out=newA);
+	And(a=instruction[15],b=instruction[3],out=writeM);
+	
+	And(a=instruction[15],b=instruction[5],out=storeAornot1);
+	Or(a=storeAornot1,b=ainstruction,out=storeAornot);
+	ARegister(in=newA,load=storeAornot,out=whatstoredinA,out[0..14]=addressM);
+	
+	And(a=instruction[15],b=instruction[4],out=storeDornot);
+	Mux16(a=whatstoredinA,b=inM,sel=instruction[12],out=AorM);
+	ALU(x=whatstoredinD, y=AorM, 
+                   out=outmemory,
+                   out=outM,
+                   zx=instruction[11],
+                   nx=instruction[10],
+                   zy=instruction[9],
+                   ny=instruction[8],
+                   f=instruction[7],
+                   no=instruction[6],
+                   ng=ng,
+                   zr=zr);
+	//store DRegister
+	DRegister(in=outmemory,load=storeDornot,out=whatstoredinD);
+	//jump or not
+	And(a=instruction[2],b=ng,out=j1);
+	And(a=instruction[1],b=zr,out=j2);
+	Or(a=ng,b=zr,out=zrplusnot);
+	Not(in=zrplusnot,out=zrplus);
+	And(a=instruction[0],b=zrplus,out=j3);
+	Or(a=j1,b=j2,out=j12);
+	Or(a=j12,b=j3,out=jump123);
+	And(a=jump123,b=instruction[15],out=jump);
+	PC(in=whatstoredinA,load=jump,inc=true,reset=reset,out[0..14]=pc);
 }
