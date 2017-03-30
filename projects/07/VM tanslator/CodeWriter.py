@@ -30,8 +30,7 @@ class CodeWriter():
     R_R15 = R_COPY = 15
 
     def __init__(self):
-        pass
-
+        self.lable_index = 0
 
     # api
     def setFileName(self, infile):
@@ -41,14 +40,11 @@ class CodeWriter():
             outfile = infile + '.asm'
         self.fo = open(outfile, 'w')
 
-
     def writeArithmetic(self, arith):
         self.fo.write(self.get_arith(arith).replace('SP', '0'))
 
-
     def writePushPop(self, cmd, obj, index):
         self.fo.write(self.get_pp(cmd, obj, index).replace('SP', '0'))
-
 
     def close(self):
         self.fo.close()
@@ -56,49 +52,70 @@ class CodeWriter():
     # implement
     def get_arith(self, arith):
         return {
-            "add": self.get_add()
-        }.get(arith, "default")
+            "add": "@SP\nM=M-1\nA=M\nD=M\n@SP\nM=M-1\nA=M\nD=M+D\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
+            "sub": "@SP\nM=M-1\nA=M\nD=M\n@SP\nM=M-1\nA=M\nD=M-D\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
+            "neg": "@SP\nM=M-1\nA=M\nD=-M\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
+            "eq": self.get_eq("eq"),
+            "gt": self.get_eq("gt"),
+            "lt": self.get_eq("lt"),
+            "and": "@SP\nM=M-1\nA=M\nD=M\n@SP\nM=M-1\nA=M\nD=M&D\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
+            "or": "@SP\nM=M-1\nA=M\nD=M\n@SP\nM=M-1\nA=M\nD=M|D\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
+            "not": "@SP\nM=M-1\nA=M\nD=!M\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
+        }.get(arith, "default_arith")
 
-    def get_add(self):
-        return "@SP\nM=M-1\n@SP\nA=M\nD=M\n@SP\nA=M-1\nD=M+D\n@SP\nA=M\nM=D\n@SP\nM=M+1\n"
+    def get_eq(self, type):
+        self.lable_index += 1
+        return "@SP\nM=M-1\nA=M\nD=M\n@SP\nM=M-1\nA=M\nD=M-D\n@"\
+               + type + str(self.lable_index)\
+               + "\nD," + self.eq_get_eq(type) + "\n@SP\nA=M\nM=0\n@SP\nM=M+1\n@end"\
+               + str(self.lable_index) + "\n0,JMP\n("\
+               + type + str(self.lable_index)\
+               + ")\n@SP\nA=M\nM=-1\n@SP\nM=M+1\n(end"\
+               + str(self.lable_index) + ")\n"
 
+    def eq_get_eq(self, type):
+        return{
+            "eq" : "JEQ",
+            "lt" : "JLT",
+            "gt" : "JGT"
+        }.get(type, "default")
     def get_pp(self, cmd, obj, index):
         return {
             1: self.get_push(obj, index),
             2: self.get_pop(obj, index)
-        }.get(cmd, "default")
-
+        }.get(cmd, "default_pp")
 
     def get_push(self, obj, index):
         push = "@SP\nA=M\nM=D\n@SP\nM=M+1\n"
-        suffix = "A=M+" + index + "\nD=M\n" + push
+        prefix = "@" + index + "\nD=A\n"
+        suffix = "A=M+D\nD=M\n" + push
         return {
-            CodeWriter.S_LCL: "@LCL\n" + suffix,
-            CodeWriter.S_ARG: "@ARG\n" + suffix,
-            CodeWriter.S_THIS: "@THIS\n" + suffix,
-            CodeWriter.S_THAT: "@THAT\n" + suffix,
-            CodeWriter.S_CONST: "@SP\nA=M\nD=" + index + "\nM=D\n@SP\nM=M+1\n",
-            CodeWriter.S_STATIC: "@" + str(16) + suffix,
-            CodeWriter.S_TEMP: "@" + str(5) + suffix,
-            CodeWriter.S_PTR: self.get_ptr(index)
-        }.get(obj, "default")
-
+            CodeWriter.S_LCL: prefix + "@1\n" + suffix,
+            CodeWriter.S_ARG: prefix + "@2\n" + suffix,
+            CodeWriter.S_THIS: prefix + "@3\n" + suffix,
+            CodeWriter.S_THAT: prefix + "@4\n" + suffix,
+            CodeWriter.S_CONST: "@SP\nA=M\n@" + index + "\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
+            CodeWriter.S_STATIC: prefix + "@16\n" + "A=A+D\nD=M\n" + push,
+            CodeWriter.S_TEMP: prefix + "@5\n" + "A=A+D\nD=M\n" + push,
+            CodeWriter.S_PTR: self.get_ptr(index) + "\nD=M\n" + push
+        }.get(obj, "default_push")
 
     def get_pop(self, obj, index):
-        pop = "@SP\nA=M\nD=M\n@SP\nM=M-1\n"
-        suffix = "A=M+" + index + "\nM=D\n"
+        pop = "@SP\nM=M-1\n@SP\nA=M\nD=M\n@14\nM=D\n"
+        prefix = pop + "@" + index + "\nD=A\n"
+        suffix = "A=M\nD=A+D\n@13\nM=D\n@14\nD=M\n@13\nA=M\nM=D\n"
         return {
-            CodeWriter.S_LCL: pop + "@LCL\n" + suffix,
-            CodeWriter.S_ARG: pop + "@ARG\n" + suffix,
-            CodeWriter.S_THIS: pop + "@THIS\n" + suffix,
-            CodeWriter.S_THAT: pop + "@THAT\n" + suffix,
-            CodeWriter.S_STATIC: "@" + str(16) + suffix,
-            CodeWriter.S_TEMP: "@" + str(5) + suffix,
-            CodeWriter.S_PTR: self.get_ptr(index)
-        }.get(obj, "default")
+            CodeWriter.S_LCL: prefix + "@1\n" + suffix,
+            CodeWriter.S_ARG: prefix + "@2\n" + suffix,
+            CodeWriter.S_THIS: prefix + "@3\n" + suffix,
+            CodeWriter.S_THAT: prefix + "@4\n" + suffix,
+            CodeWriter.S_STATIC: prefix + "@16\n" + "D=A+D\n@13\nM=D\n@14\nD=M\n@13\nA=M\nM=D\n",
+            CodeWriter.S_TEMP: prefix + "@5\n" + "D=A+D\n@13\nM=D\n@14\nD=M\n@13\nA=M\nM=D\n",
+            CodeWriter.S_PTR: pop + self.get_ptr(index) + "\nM=D\n"
+        }.get(obj, "default_pop")
 
     def get_ptr(self, index):
-        return{
-            0 : "@THAT",
-            1 : "@THIS"
-        }.get(index, "default")
+        return {
+            "0" : "@3",
+            "1" : "@4"
+        }.get(index, "default_ptr")

@@ -19,6 +19,6 @@ class Main(object):
         codewriter.close()
 
 if __name__ == "__main__":
-#    infile = "../MemoryAccess/BasicTest/BasicTest.vm"
-    infile = "../StackArithmetic/SimpleAdd/SimpleAdd.vm"
+    infile = "../MemoryAccess/PointerTest/PointerTest.vm"
+#    infile = "../StackArithmetic/StackTest/StackTest.vm"
     sess = Main()
