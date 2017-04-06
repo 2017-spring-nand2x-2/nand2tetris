@@ -32,7 +32,7 @@ class CodeWriter():
     def __init__(self):
         self.lable_index = 0
 
-    # api
+    # interfaces
     def setFileName(self, infile):
         if infile.endswith('.vm'):
             outfile = infile.replace('.vm', '.asm')
@@ -51,6 +51,7 @@ class CodeWriter():
 
     # implement
     def get_arith(self, arith):
+        # translate each command
         return {
             "add": "@SP\nM=M-1\nA=M\nD=M\n@SP\nM=M-1\nA=M\nD=M+D\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
             "sub": "@SP\nM=M-1\nA=M\nD=M\n@SP\nM=M-1\nA=M\nD=M-D\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
@@ -67,18 +68,19 @@ class CodeWriter():
         self.lable_index += 1
         return "@SP\nM=M-1\nA=M\nD=M\n@SP\nM=M-1\nA=M\nD=M-D\n@"\
                + type + str(self.lable_index)\
-               + "\nD," + self.eq_get_eq(type) + "\n@SP\nA=M\nM=0\n@SP\nM=M+1\n@end"\
+               + "\nD," + self.get_eq_jump(type) + "\n@SP\nA=M\nM=0\n@SP\nM=M+1\n@end"\
                + str(self.lable_index) + "\n0,JMP\n("\
                + type + str(self.lable_index)\
                + ")\n@SP\nA=M\nM=-1\n@SP\nM=M+1\n(end"\
                + str(self.lable_index) + ")\n"
 
-    def eq_get_eq(self, type):
+    def get_eq_jump(self, type):
         return{
             "eq" : "JEQ",
             "lt" : "JLT",
             "gt" : "JGT"
         }.get(type, "default")
+
     def get_pp(self, cmd, obj, index):
         return {
             1: self.get_push(obj, index),
@@ -86,15 +88,17 @@ class CodeWriter():
         }.get(cmd, "default_pp")
 
     def get_push(self, obj, index):
+        # some common asm commands
         push = "@SP\nA=M\nM=D\n@SP\nM=M+1\n"
         prefix = "@" + index + "\nD=A\n"
         suffix = "A=M+D\nD=M\n" + push
+        const_suffix = "\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n"
         return {
             CodeWriter.S_LCL: prefix + "@1\n" + suffix,
             CodeWriter.S_ARG: prefix + "@2\n" + suffix,
             CodeWriter.S_THIS: prefix + "@3\n" + suffix,
             CodeWriter.S_THAT: prefix + "@4\n" + suffix,
-            CodeWriter.S_CONST: "@SP\nA=M\n@" + index + "\nD=A\n@SP\nA=M\nM=D\n@SP\nM=M+1\n",
+            CodeWriter.S_CONST: "@SP\nA=M\n@" + index + const_suffix,
             CodeWriter.S_STATIC: prefix + "@16\n" + "A=A+D\nD=M\n" + push,
             CodeWriter.S_TEMP: prefix + "@5\n" + "A=A+D\nD=M\n" + push,
             CodeWriter.S_PTR: self.get_ptr(index) + "\nD=M\n" + push
@@ -103,14 +107,15 @@ class CodeWriter():
     def get_pop(self, obj, index):
         pop = "@SP\nM=M-1\n@SP\nA=M\nD=M\n@14\nM=D\n"
         prefix = pop + "@" + index + "\nD=A\n"
-        suffix = "A=M\nD=A+D\n@13\nM=D\n@14\nD=M\n@13\nA=M\nM=D\n"
+        suffix = "D=A+D\n@13\nM=D\n@14\nD=M\n@13\nA=M\nM=D\n"
+        pointer_suffix = "A=M\n" + suffix
         return {
-            CodeWriter.S_LCL: prefix + "@1\n" + suffix,
-            CodeWriter.S_ARG: prefix + "@2\n" + suffix,
-            CodeWriter.S_THIS: prefix + "@3\n" + suffix,
-            CodeWriter.S_THAT: prefix + "@4\n" + suffix,
-            CodeWriter.S_STATIC: prefix + "@16\n" + "D=A+D\n@13\nM=D\n@14\nD=M\n@13\nA=M\nM=D\n",
-            CodeWriter.S_TEMP: prefix + "@5\n" + "D=A+D\n@13\nM=D\n@14\nD=M\n@13\nA=M\nM=D\n",
+            CodeWriter.S_LCL: prefix + "@1\n" + pointer_suffix,
+            CodeWriter.S_ARG: prefix + "@2\n" + pointer_suffix,
+            CodeWriter.S_THIS: prefix + "@3\n" + pointer_suffix,
+            CodeWriter.S_THAT: prefix + "@4\n" + pointer_suffix,
+            CodeWriter.S_STATIC: prefix + "@16\n" + suffix,
+            CodeWriter.S_TEMP: prefix + "@5\n" + suffix,
             CodeWriter.S_PTR: pop + self.get_ptr(index) + "\nM=D\n"
         }.get(obj, "default_pop")
 
